@@ -20,7 +20,7 @@ namespace Account
         * addr,lockType,lockAddr*/
         [DisplayName("approveOperator")]
         public static event approveOperated Approved;
-        public delegate void approveOperated(byte[] from, byte[] to,BigInteger type,byte[] assetType,byte[] asset,BigInteger mount);
+        public delegate void approveOperated(byte[] from, byte[] to,byte[] type,byte[] assetType,byte[] asset,BigInteger mount);
 
         /** Operation of Lock records
      * addr,lockType,lockAddr*/
@@ -41,7 +41,8 @@ namespace Account
         private const string LOCK_GLOBAL = "lockGlobal";
         private const string ASSET_NEP5 = "nep5";
         private const string ASSET_NEP55 = "nep55";
-
+        private const string APPROVE_TOTAL = "1";
+        private const string APPROVE_SINGLE = "2";
 
         //StorageMap accountInfo, key: username
         //StorageMap nameInfo, key: addr
@@ -80,9 +81,9 @@ namespace Account
 
                 if (method == "getBalance") return GetBalance((string)args[0], (string)args[1], (string)args[2]);
 
-                if (method == "approveTransfer") return ApproveTransfer((byte[])args[0], (string)args[1], (string)args[2], (BigInteger)args[3], (string)args[4], (string)args[5],(BigInteger)args[6]);
+                if (method == "approveTransfer") return ApproveTransfer((byte[])args[0], (string)args[1], (string)args[2], (string)args[3], (string)args[4], (string)args[5],(BigInteger)args[6]);
 
-                if (method == "getApproveInfo") return GetApproveInfo((string)args[0], (string)args[1], (BigInteger)args[2], (string)args[3], (string)args[4]);
+                if (method == "getApproveInfo") return GetApproveInfo((string)args[0], (string)args[1], (string)args[2], (string)args[3], (string)args[4]);
 
                 if (method == "userTransfer") return UserTransfer((byte[])args[0], (string)args[1], (string)args[2],(string)args[3], (string)args[4], (BigInteger)args[5]);
 
@@ -112,7 +113,6 @@ namespace Account
 
             var txid = ((Transaction)ExecutionEngine.ScriptContainer).Hash;
 
-            //锁仓高度，锁仓时间，锁仓额度
             var openHeight = Blockchain.GetHeight();
             var nowtime = Blockchain.GetHeader(openHeight).Timestamp;
 
@@ -336,7 +336,7 @@ namespace Account
         /// <param name="mount">approve mount</param>
         /// <returns>boolean</returns>
         [DisplayName("approveTransfer")]
-        public static bool ApproveTransfer(byte[] addr, string srcName,string destName, BigInteger type, string assetType, string asset, BigInteger mount)
+        public static bool ApproveTransfer(byte[] addr, string srcName,string destName, string type, string assetType, string asset, BigInteger mount)
         {
             if (!Runtime.CheckWitness(addr)) return false;
 
@@ -369,18 +369,18 @@ namespace Account
 
             byte[] key = addr.Concat(destAddr).Concat(type.AsByteArray()).Concat(assetType.AsByteArray()).Concat(asset.AsByteArray());
             //total
-            if (type == 1)
+            if (type == APPROVE_TOTAL)
             {
                 StorageMap authTotal = Storage.CurrentContext.CreateMap(nameof(authTotal));
                 authTotal.Put(key, mount);
             }
             //single
-            else if (type == 2)
+            else if (type == APPROVE_SINGLE)
             {
                 StorageMap authSingle = Storage.CurrentContext.CreateMap(nameof(authSingle));
                 authSingle.Put(key, mount);
             }
-            Approved(addr,destAddr,type,assetType.AsByteArray(),asset.AsByteArray(),mount);
+            Approved(addr,destAddr,type.AsByteArray(),assetType.AsByteArray(),asset.AsByteArray(),mount);
             return true;
         }
 
@@ -394,7 +394,7 @@ namespace Account
         /// <param name="asset">nep5:sds_account/nep55:SD-HELLO</param>
         /// <returns>BigInteger</returns>
         [DisplayName("getApproveInfo")]
-        public static BigInteger GetApproveInfo(string srcName, string destName, BigInteger type, string assetType, string asset)
+        public static BigInteger GetApproveInfo(string srcName, string destName, string type, string assetType, string asset)
         {
             if (srcName.Length <= 0)
                 throw new InvalidOperationException("The parameter srcName SHOULD be longer than 0.");
@@ -419,13 +419,13 @@ namespace Account
             BigInteger ret = 0;
             byte[] key = srcAddr.Concat(destAddr).Concat(type.AsByteArray()).Concat(assetType.AsByteArray()).Concat(asset.AsByteArray());
             //total
-            if (type == 1)
+            if (type == APPROVE_TOTAL)
             {
                 StorageMap authTotal = Storage.CurrentContext.CreateMap(nameof(authTotal));
                 ret = authTotal.Get(key).AsBigInteger();
             }
             //single
-            else if (type == 2)
+            else if (type == APPROVE_SINGLE)
             {
                 StorageMap authSingle = Storage.CurrentContext.CreateMap(nameof(authSingle));
                 ret = authSingle.Get(key).AsBigInteger();
@@ -483,8 +483,8 @@ namespace Account
             if(srcAddr == destAddr)
                     throw new InvalidOperationException("The address can not be equal.");
 
-            byte[] keyTotal = srcAddr.Concat(destAddr).Concat(new BigInteger(1).AsByteArray()).Concat(assetType.AsByteArray()).Concat(assetName.AsByteArray());
-            byte[] keySingle = srcAddr.Concat(destAddr).Concat(new BigInteger(2).AsByteArray()).Concat(assetType.AsByteArray()).Concat(assetName.AsByteArray());
+            byte[] keyTotal = srcAddr.Concat(destAddr).Concat(APPROVE_TOTAL.AsByteArray()).Concat(assetType.AsByteArray()).Concat(assetName.AsByteArray());
+            byte[] keySingle = srcAddr.Concat(destAddr).Concat(APPROVE_SINGLE.AsByteArray()).Concat(assetType.AsByteArray()).Concat(assetName.AsByteArray());
 
             StorageMap authTotal = Storage.CurrentContext.CreateMap(nameof(authTotal));
             StorageMap authSingle = Storage.CurrentContext.CreateMap(nameof(authSingle));
@@ -652,7 +652,7 @@ namespace Account
             //creator
             public byte[] owner;
 
-            //key of this lock
+            //key of this account
             public byte[] txid;
 
             //userName
