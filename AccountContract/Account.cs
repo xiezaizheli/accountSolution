@@ -10,23 +10,21 @@ namespace Account
 {
     public class Account : SmartContract
     {
-        /** Operation of Lock records
-        * addr,lockType,type,operated*/
+        /** Operation of account records
+        * addr,name,type,operated*/
         [DisplayName("accOperator")]   
         public static event deleAccOperated AccoutOperated;
-        public delegate void deleAccOperated(byte[] from, byte[] type,BigInteger optype, BigInteger value);
+        public delegate void deleAccOperated(byte[] from, byte[] name,BigInteger optype, BigInteger value);
 
-        /** Operation of Lock records
-        * addr,lockType,lockAddr*/
-        [DisplayName("approveOperator")]
+        /** Operation of account approve records*/
+        [DisplayName("accApproveOperator")]
         public static event approveOperated Approved;
-        public delegate void approveOperated(byte[] from, byte[] to,byte[] type,byte[] assetType,byte[] asset,BigInteger mount);
+        public delegate void approveOperated(byte[] from, byte[] to,byte[] srcName,byte[] destName,byte[] type,byte[] assetType,byte[] asset,BigInteger mount);
 
-        /** Operation of Lock records
-     * addr,lockType,lockAddr*/
-        [DisplayName("userTransfer")]
+        /** Operation of account transfer records*/
+        [DisplayName("accUserTransfer")]
         public static event userTransfer Transfered;
-        public delegate void userTransfer(byte[] from, byte[] to,byte[] assetType, byte[] asset, BigInteger mount);
+        public delegate void userTransfer(byte[] from, byte[] to, byte[] srcName, byte[] destName,byte[] assetType, byte[] asset, BigInteger mount);
 
 
         public delegate object NEP5Contract(string method, object[] args);
@@ -92,6 +90,8 @@ namespace Account
 
                 if (method == "getAccount") return GetAccount((string)args[0]);
 
+                if (method == "getUserName") return GetUserName((byte[])args[0]);
+
 
             }
             return false;
@@ -125,7 +125,7 @@ namespace Account
             accountInfo.Put(username, Helper.Serialize(info));
 
             StorageMap nameInfo = Storage.CurrentContext.CreateMap(nameof(nameInfo));
-            nameInfo.Put(addr,1);
+            nameInfo.Put(addr,username);
             //notify
             AccoutOperated(addr, username.AsByteArray(), (int)ConfigTranType.TRANSACTION_TYPE_OPEN, 0);
             return true;
@@ -141,6 +141,16 @@ namespace Account
             var result = accountInfo.Get(username); 
             if (result.Length == 0) return null;
             return Helper.Deserialize(result) as AccountInfo;
+        }
+
+        [DisplayName("getUserName")]
+        public static string GetUserName(byte[] addr)
+        {
+            if (addr.Length != 20)
+                throw new InvalidOperationException("The parameter addr SHOULD be 20-byte addresses.");
+
+            StorageMap nameInfo = Storage.CurrentContext.CreateMap(nameof(nameInfo));
+            return nameInfo.Get(addr).AsString();
         }
 
 
@@ -380,7 +390,7 @@ namespace Account
                 StorageMap authSingle = Storage.CurrentContext.CreateMap(nameof(authSingle));
                 authSingle.Put(key, mount);
             }
-            Approved(addr,destAddr,type.AsByteArray(),assetType.AsByteArray(),asset.AsByteArray(),mount);
+            Approved(addr,destAddr,srcName.AsByteArray(),destName.AsByteArray(),type.AsByteArray(),assetType.AsByteArray(),asset.AsByteArray(),mount);
             return true;
         }
 
@@ -512,7 +522,7 @@ namespace Account
                
                 nep5AssetStore.Put(key, nep5Locked - mount);
                 nep5AssetStore.Put(keyDest, destLocked + mount);
-                Transfered(srcAddr,destAddr,assetType.AsByteArray(),assetName.AsByteArray(),mount);
+                Transfered(srcAddr,destAddr,srcName.AsByteArray(),destName.AsByteArray(),assetType.AsByteArray(),assetName.AsByteArray(),mount);
             }
             else if (assetType == ASSET_NEP55)
             {
@@ -528,7 +538,7 @@ namespace Account
 
                 nep55AssetStore.Put(key, nep55Locked - mount);
                 nep55AssetStore.Put(keyDest, destLocked + mount);
-                Transfered(srcAddr, destAddr, assetType.AsByteArray(), assetName.AsByteArray(), mount);
+                Transfered(srcAddr, destAddr, srcName.AsByteArray(), destName.AsByteArray(),assetType.AsByteArray(), assetName.AsByteArray(), mount);
             }
             authTotal.Put(keyTotal, total-mount);
             return true;
@@ -641,8 +651,8 @@ namespace Account
             }
             //check name is useful.
             StorageMap nameInfo = Storage.CurrentContext.CreateMap(nameof(nameInfo));
-            BigInteger ret = nameInfo.Get(addr).AsBigInteger();
-            if (ret > 0) return false;
+            string ret = nameInfo.Get(addr).AsString();
+            if (ret.Length > 0) return false;
             return true;
         }
 
